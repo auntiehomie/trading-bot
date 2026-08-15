@@ -1,0 +1,33 @@
+name: Security Audit
+
+on:
+  schedule:
+    - cron: "0 8 * * 1" # Every Monday at 8:00 UTC
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Check for outdated packages
+        run: npm outdated || true
+
+      - name: Run eslint security rules
+        run: npm run lint
+        continue-on-error: true
