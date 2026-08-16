@@ -19,9 +19,10 @@ export default function TradePage() {
           Best-Course Swap Routing
         </h3>
         <p className="text-xs text-gray-500 leading-relaxed">
-          Our routing engine finds the optimal swap path across DEXes (Uniswap, SushiSwap, Camelot) 
-          and aggregators (1inch, 0x, Paraswap) to minimize slippage and maximize your returns.
-          Coming soon — currently UI scaffold only.
+          Quotes are fetched live from the 1inch Aggregation API, which routes
+          across Arbitrum DEXes (Uniswap, SushiSwap, Camelot) to minimize
+          slippage. On-chain swap execution via your connected wallet is coming
+          soon.
         </p>
       </div>
     </div>
