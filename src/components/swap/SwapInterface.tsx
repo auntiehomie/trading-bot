@@ -1,14 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { evaluateTrade, formatEstimate, type TradeEstimate, DEFAULT_CONFIG } from "@/lib/profitability";
+import { priceMonitor, type PriceUpdate } from "@/lib/priceMonitor";
 
 const tokens = [
-  { symbol: "ETH", name: "Ethereum", icon: "⟠" },
-  { symbol: "ARB", name: "Arbitrum", icon: "🔷" },
-  { symbol: "USDC", name: "USD Coin", icon: "💲" },
-  { symbol: "USDT", name: "Tether", icon: "💵" },
-  { symbol: "LINK", name: "Chainlink", icon: "🔗" },
+  { symbol: "ETH", name: "Ethereum", icon: "⟠", decimals: 18 },
+  { symbol: "ARB", name: "Arbitrum", icon: "🔷", decimals: 18 },
+  { symbol: "USDC", name: "USD Coin", icon: "💲", decimals: 6 },
+  { symbol: "USDT", name: "Tether", icon: "💵", decimals: 6 },
+  { symbol: "LINK", name: "Chainlink", icon: "🔗", decimals: 18 },
 ];
+
+// Mock prices for scaffold — in production these come from priceMonitor / oracle
+const mockPrices: Record<string, number> = {
+  ETH: 3215.5,
+  ARB: 0.95,
+  USDC: 1.0,
+  USDT: 1.0,
+  LINK: 14.2,
+};
 
 export default function SwapInterface() {
   const [fromToken, setFromToken] = useState(tokens[0]);
@@ -16,15 +27,38 @@ export default function SwapInterface() {
   const [fromAmount, setFromAmount] = useState("");
   const [toAmount, setToAmount] = useState("");
   const [quote, setQuote] = useState<string | null>(null);
+  const [estimate, setEstimate] = useState<TradeEstimate | null>(null);
+  const [priceUpdate, setPriceUpdate] = useState<PriceUpdate | null>(null);
 
-  const handleGetQuote = () => {
+  // Subscribe to price updates for fromToken
+  useEffect(() => {
+    const unsub = priceMonitor.subscribe(fromToken.symbol, (update) => {
+      setPriceUpdate(update);
+    });
+    return () => unsub();
+  }, [fromToken.symbol]);
+
+  const handleGetQuote = useCallback(() => {
     if (!fromAmount || Number(fromAmount) <= 0) return;
-    const rate = fromToken.symbol === "ETH" ? 3215.5 : 1.0;
-    setToAmount((Number(fromAmount) * rate).toFixed(6));
-    setQuote(
-      `1 ${fromToken.symbol} = ${rate.toFixed(2)} ${toToken.symbol}`,
-    );
-  };
+    const rate = mockPrices[fromToken.symbol] / mockPrices[toToken.symbol];
+    const inputAmount = Number(fromAmount);
+    const outputAmount = inputAmount * rate;
+    setToAmount(outputAmount.toFixed(6));
+    setQuote(`1 ${fromToken.symbol} = ${rate.toFixed(4)} ${toToken.symbol}`);
+
+    // Run profitability evaluation
+    const tradeEstimate = evaluateTrade({
+      tokenIn: fromToken.symbol,
+      tokenOut: toToken.symbol,
+      amountIn: BigInt(Math.floor(inputAmount * 10 ** fromToken.decimals)),
+      amountOut: BigInt(Math.floor(outputAmount * 10 ** toToken.decimals)),
+      priceInUsd: mockPrices[fromToken.symbol],
+      priceOutUsd: mockPrices[toToken.symbol],
+      decimalsIn: fromToken.decimals,
+      decimalsOut: toToken.decimals,
+    }, DEFAULT_CONFIG);
+    setEstimate(tradeEstimate);
+  }, [fromAmount, fromToken, toToken]);
 
   const handleSwapTokens = () => {
     setFromToken(toToken);
@@ -32,6 +66,7 @@ export default function SwapInterface() {
     setFromAmount("");
     setToAmount("");
     setQuote(null);
+    setEstimate(null);
   };
 
   return (
@@ -129,14 +164,52 @@ export default function SwapInterface() {
         </div>
       )}
 
-      {/* Action Button */}
-      <button
-        onClick={handleGetQuote}
-        disabled={!fromAmount || Number(fromAmount) <= 0}
-        className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        Get Quote
-      </button>
+      {/* Profitability Estimate */}
+      {estimate && (
+        <div className={`rounded-lg border p-3 ${estimate.isProfitable ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/5"}`}>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-500">Est. Gas Cost</span>
+            <span className="text-gray-300">${estimate.gasCostUsd.toFixed(4)}</span>
+          </div>
+          <div className="mt-1 flex items-center justify-between text-xs">
+            <span className="text-gray-500">Est. Slippage</span>
+            <span className="text-gray-300">{(estimate.slippageBps / 100).toFixed(2)}%</span>
+          </div>
+          <div className="mt-1 flex items-center justify-between text-xs">
+            <span className="text-gray-500">Net Profit</span>
+            <span className={estimate.netProfitUsd >= 0 ? "text-emerald-400" : "text-red-400"}>
+              {estimate.netProfitUsd >= 0 ? "+" : ""}${estimate.netProfitUsd.toFixed(2)} ({estimate.netProfitPct.toFixed(2)}%)
+            </span>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${estimate.isProfitable ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400"}`}>
+              {estimate.isProfitable ? "✓ PROFITABLE" : "⚠ LOW PROFIT"}
+            </span>
+          </div>
+          {priceUpdate && (
+            <p className="mt-1 text-xs text-gray-600">
+              Live price: ${priceUpdate.priceUsd.toFixed(2)} ({priceUpdate.source})
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      <div className="flex gap-3">
+        <button
+          onClick={handleGetQuote}
+          disabled={!fromAmount || Number(fromAmount) <= 0}
+          className="flex-1 rounded-xl bg-gray-700 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Get Quote
+        </button>
+        <button
+          disabled={!estimate || !estimate.isProfitable}
+          className={`flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${estimate?.isProfitable ? "bg-emerald-600 hover:bg-emerald-500" : "bg-gray-700"}`}
+        >
+          Execute Swap
+        </button>
+      </div>
 
       <p className="text-center text-xs text-gray-600">
         Swaps execute via the best available route on Arbitrum.
