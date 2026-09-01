@@ -6,14 +6,14 @@ import { priceMonitor, type PriceUpdate } from "@/lib/priceMonitor";
 
 export default function PortfolioSummary() {
   const [ethPrice, setEthPrice] = useState<PriceUpdate | null>(() => {
-    const existing = priceMonitor.getPrice("ETH");
+    const existing = priceMonitor["prices"].get("ETH");
     if (existing) return existing;
     const fallback: PriceUpdate = { token: "ETH", priceUsd: 3215.5, timestamp: Date.now(), source: "cache" };
     priceMonitor["prices"].set("ETH", fallback);
     return fallback;
   });
   const [arbPrice, setArbPrice] = useState<PriceUpdate | null>(() => {
-    const existing = priceMonitor.getPrice("ARB");
+    const existing = priceMonitor["prices"].get("ARB");
     if (existing) return existing;
     const fallback: PriceUpdate = { token: "ARB", priceUsd: 0.95, timestamp: Date.now(), source: "cache" };
     priceMonitor["prices"].set("ARB", fallback);
