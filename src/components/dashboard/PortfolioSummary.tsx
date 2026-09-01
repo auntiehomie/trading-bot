@@ -5,23 +5,25 @@ import { mockPortfolioSummary as summary } from "@/lib/mock-data";
 import { priceMonitor, type PriceUpdate } from "@/lib/priceMonitor";
 
 export default function PortfolioSummary() {
-  const [ethPrice, setEthPrice] = useState<PriceUpdate | null>(null);
-  const [arbPrice, setArbPrice] = useState<PriceUpdate | null>(null);
+  const [ethPrice, setEthPrice] = useState<PriceUpdate | null>(() => {
+    const existing = priceMonitor.getPrice("ETH");
+    if (existing) return existing;
+    const fallback: PriceUpdate = { token: "ETH", priceUsd: 3215.5, timestamp: Date.now(), source: "cache" };
+    priceMonitor["prices"].set("ETH", fallback);
+    return fallback;
+  });
+  const [arbPrice, setArbPrice] = useState<PriceUpdate | null>(() => {
+    const existing = priceMonitor.getPrice("ARB");
+    if (existing) return existing;
+    const fallback: PriceUpdate = { token: "ARB", priceUsd: 0.95, timestamp: Date.now(), source: "cache" };
+    priceMonitor["prices"].set("ARB", fallback);
+    return fallback;
+  });
 
   useEffect(() => {
     // Subscribe to live price updates from the PriceMonitor
     const unsubEth = priceMonitor.subscribe("ETH", (update) => setEthPrice(update));
     const unsubArb = priceMonitor.subscribe("ARB", (update) => setArbPrice(update));
-
-    // Fallback: set mock prices so the component shows something even without a live feed
-    if (!priceMonitor.getPrice("ETH")) {
-      priceMonitor["prices"].set("ETH", { token: "ETH", priceUsd: 3215.5, timestamp: Date.now(), source: "cache" });
-      setEthPrice({ token: "ETH", priceUsd: 3215.5, timestamp: Date.now(), source: "cache" });
-    }
-    if (!priceMonitor.getPrice("ARB")) {
-      priceMonitor["prices"].set("ARB", { token: "ARB", priceUsd: 0.95, timestamp: Date.now(), source: "cache" });
-      setArbPrice({ token: "ARB", priceUsd: 0.95, timestamp: Date.now(), source: "cache" });
-    }
 
     return () => {
       unsubEth();

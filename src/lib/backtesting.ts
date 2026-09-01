@@ -8,7 +8,6 @@
  * - Slippage + gas simulation for realistic results
  */
 
-import { type ProfitabilityConfig } from "./profitability";
 
 export interface HistoricalPrice {
   timestamp: number; // unix seconds

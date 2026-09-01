@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { evaluateTrade, formatEstimate, type TradeEstimate, DEFAULT_CONFIG } from "@/lib/profitability";
+import { evaluateTrade, type TradeEstimate, DEFAULT_CONFIG } from "@/lib/profitability";
 import { priceMonitor, type PriceUpdate } from "@/lib/priceMonitor";
 
 const tokens = [
