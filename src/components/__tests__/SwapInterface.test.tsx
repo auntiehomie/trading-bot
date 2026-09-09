@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SwapInterface from "../swap/SwapInterface";
 
@@ -7,12 +7,17 @@ vi.mock("@/lib/profitability", () => ({
   DEFAULT_CONFIG: { minProfitUsd: 5, maxSlippageBps: 300, gasPriceGwei: 0.1, ethPriceUsd: 3200, protocolFeeBps: 0, bridgeFeeUsd: 0, gasLimitEstimate: 200000 },
   evaluateTrade,
 }));
+const subscribe = vi.hoisted(() => vi.fn(() => () => {}));
 vi.mock("@/lib/priceMonitor", () => ({
-  priceMonitor: { subscribe: vi.fn(() => () => {}) },
+  priceMonitor: { subscribe },
 }));
 
 describe("SwapInterface", () => {
-  beforeEach(() => { cleanup(); evaluateTrade.mockReset(); });
+  beforeEach(() => {
+    cleanup();
+    evaluateTrade.mockReset();
+    subscribe.mockClear();
+  });
 
   it("renders token inputs and actions", () => {
     render(<SwapInterface />);
@@ -50,5 +55,46 @@ describe("SwapInterface", () => {
     fireEvent.click(screen.getByRole("button", { name: "Get Quote" }));
     expect(screen.getByText("⚠ LOW PROFIT")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Execute Swap" })).toBeDisabled();
+  });
+
+  it("does not request a quote for an empty or non-positive amount", () => {
+    render(<SwapInterface />);
+    const amount = screen.getAllByPlaceholderText("0.0")[0];
+    fireEvent.change(amount, { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Get Quote" }));
+    expect(evaluateTrade).not.toHaveBeenCalled();
+    expect(screen.queryByText(/1 ETH =/)).not.toBeInTheDocument();
+  });
+
+  it("clears an existing quote when the input or token selection changes", () => {
+    evaluateTrade.mockReturnValue({ gasCostUsd: 0.02, slippageBps: 100, netProfitUsd: 1, netProfitPct: 0.1, isProfitable: false });
+    render(<SwapInterface />);
+    const amount = screen.getAllByPlaceholderText("0.0")[0];
+    fireEvent.change(amount, { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Get Quote" }));
+    expect(screen.getByText(/1 ETH =/)).toBeInTheDocument();
+
+    fireEvent.change(amount, { target: { value: "2" } });
+    expect(screen.queryByText(/1 ETH =/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Get Quote" }));
+    fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "ARB" } });
+    expect(screen.queryByText(/ETH =/)).not.toBeInTheDocument();
+  });
+
+  it("renders live price updates for the selected token", () => {
+    let onUpdate: ((update: { priceUsd: number; source: "websocket" | "poll" | "cache" }) => void) | undefined;
+    subscribe.mockImplementation(((
+      _token: string,
+      listener: (update: { priceUsd: number; source: "websocket" | "poll" | "cache" }) => void,
+    ) => {
+      onUpdate = listener;
+      return () => {};
+    }) as never);
+    evaluateTrade.mockReturnValue({ gasCostUsd: 0.02, slippageBps: 100, netProfitUsd: 1, netProfitPct: 0.1, isProfitable: false });
+    render(<SwapInterface />);
+    fireEvent.change(screen.getAllByPlaceholderText("0.0")[0], { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Get Quote" }));
+    act(() => onUpdate?.({ priceUsd: 3300, source: "poll" }));
+    expect(screen.getByText(/Live price: \$3300\.00 \(poll\)/)).toBeInTheDocument();
   });
 });
