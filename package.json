@@ -30,6 +30,7 @@
     "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
+    "eslint-plugin-import-x": "^4.17.1",
     "jsdom": "^26.1.0",
     "tailwindcss": "^4",
     "typescript": "^5",
