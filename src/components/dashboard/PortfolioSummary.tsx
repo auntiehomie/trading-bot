@@ -5,14 +5,17 @@ import { useAccount, useBalance } from "wagmi";
 import { formatEther } from "viem";
 import { mockPortfolioSummary as summary } from "@/lib/mock-data";
 import { priceMonitor, type PriceUpdate } from "@/lib/priceMonitor";
-import { ESCROW_ADDRESS } from "@/lib/constants";
+import { useEscrow } from "@/hooks/useEscrow";
 
 export default function PortfolioSummary() {
   const { address, isConnected } = useAccount();
   const { data: walletBalance } = useBalance({ address });
+  const userAddr = address as `0x${string}` | undefined;
+  const { escrowAddress } = useEscrow(userAddr);
+
   const { data: escrowBalance } = useBalance({
-    address: ESCROW_ADDRESS as `0x${string}`,
-  });
+    address: escrowAddress,
+ });
 
   const [ethPrice, setEthPrice] = useState<PriceUpdate | null>(() => {
     const existing = priceMonitor["prices"].get("ETH");

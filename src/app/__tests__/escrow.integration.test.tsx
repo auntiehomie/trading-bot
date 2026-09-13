@@ -1,9 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import EscrowPage from "@/app/escrow/page";
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import EscrowPage from '@/app/escrow/page';
 
-// Mock wagmi hooks
-vi.mock("wagmi", () => ({
+vi.mock('wagmi', () => ({
   useAccount: vi.fn(),
   useBalance: vi.fn(),
   useSendTransaction: vi.fn(),
@@ -12,110 +11,142 @@ vi.mock("wagmi", () => ({
   useDisconnect: vi.fn(),
   useChainId: vi.fn(),
   useConnectors: vi.fn(),
+  useReadContract: vi.fn(),
+  useWriteContract: vi.fn(),
 }));
 
-import { useAccount, useBalance } from "wagmi";
+vi.mock('@/hooks/useEscrow', () => ({
+  useEscrow: vi.fn(),
+}));
 
-const mockUseAccount = useAccount as ReturnType<typeof vi.fn>;
-const mockUseBalance = useBalance as ReturnType<typeof vi.fn>;
-
-// Mock the EscrowDeposit component to simplify testing (test EscrowDeposit separately)
-vi.mock("@/components/escrow/EscrowDeposit", () => ({
-  default: ({ escrowAddress }: { escrowAddress: string }) => (
-    <div data-testid="escrow-deposit">
-      <span data-testid="deposit-address">{escrowAddress}</span>
-      <button>Deposit ETH</button>
+vi.mock('@/components/escrow/CreateEscrow', () => ({
+  default: (props: any) => (
+    <div data-testid="create-escrow">
+      {props.createTxHash ? (
+        <span data-testid="tx-hash">{props.createTxHash}</span>
+      ) : (
+        <button data-testid="create-button" onClick={props.onCreateEscrow}>
+          Create Escrow Account
+        </button>
+      )}
     </div>
   ),
 }));
 
-describe("Escrow System — Integration Tests", () => {
+vi.mock('@/components/escrow/EscrowOnboarding', () => ({
+  default: ({ escrowAddress }: { escrowAddress: string }) => (
+    <div data-testid="escrow-onboarding">
+      <span data-testid="escrow-addr">{escrowAddress}</span>
+      <button>Deposit ETH</button>
+      <button>Withdraw ETH</button>
+    </div>
+  ),
+}));
+
+import { useAccount } from 'wagmi';
+import { useEscrow } from '@/hooks/useEscrow';
+
+const mockUseAccount = useAccount as ReturnType<typeof vi.fn>;
+const mockUseEscrow = useEscrow as ReturnType<typeof vi.fn>;
+
+describe('Escrow Page - Integration Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default: wallet disconnected
     mockUseAccount.mockReturnValue({
       address: undefined,
       isConnected: false,
       isDisconnected: true,
     });
-    mockUseBalance.mockReturnValue({ data: undefined });
+    mockUseEscrow.mockReturnValue({
+      escrowAddress: undefined,
+      hasEscrow: false,
+      isLoading: false,
+      createEscrow: vi.fn(),
+      isCreating: false,
+      isWaitingCreation: false,
+      isCreationConfirmed: false,
+      createTxHash: undefined,
+    });
   });
 
-  it("renders escrow page with balance cards when disconnected", () => {
+  it('shows connect wallet prompt when disconnected', () => {
     render(<EscrowPage />);
-    expect(screen.getByText("Escrow Balance")).toBeInTheDocument();
-    expect(screen.getByText("Wallet Balance")).toBeInTheDocument();
-    expect(screen.getByText("Minimum Deposit")).toBeInTheDocument();
+    expect(screen.getByText('Connect Your Wallet')).toBeInTheDocument();
   });
 
-  it("shows wallet not connected state", () => {
+  it('shows how escrow works section', () => {
     render(<EscrowPage />);
-    expect(screen.getByText("—")).toBeInTheDocument();
-    expect(screen.getByText("Wallet not connected")).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'How Escrow Works' })).toBeInTheDocument();
   });
 
-  it("shows escrow address with copy button", () => {
-    render(<EscrowPage />);
-    expect(screen.getByText("Escrow Address")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
-  });
-
-  it("shows minimum deposit amount", () => {
-    render(<EscrowPage />);
-    expect(screen.getByText("0.01 ETH")).toBeInTheDocument();
-    expect(screen.getByText("Minimum required deposit")).toBeInTheDocument();
-  });
-
-  it("renders deposit component with escrow address", () => {
-    render(<EscrowPage />);
-    expect(screen.getByTestId("escrow-deposit")).toBeInTheDocument();
-  });
-
-  it("renders withdraw form with disabled button", () => {
-    render(<EscrowPage />);
-    const withdrawButton = screen.getByRole("button", { name: "Withdraw ETH" });
-    expect(withdrawButton).toBeDisabled();
-  });
-
-  it("shows wallet balance when connected", () => {
+  it('shows create escrow prompt when connected but no escrow', () => {
     mockUseAccount.mockReturnValue({
-      address: "0x1234567890abcdef1234567890abcdef12345678",
+      address: '0x1234567890abcdef1234567890abcdef12345678',
       isConnected: true,
       isDisconnected: false,
     });
-
-    // Return different balances for wallet vs escrow — useBalance is called twice
-    mockUseBalance
-      .mockReturnValueOnce({ data: { value: BigInt("1500000000000000000"), decimals: 18, symbol: "ETH" } })
-      .mockReturnValueOnce({ data: { value: BigInt("450000000000000000"), decimals: 18, symbol: "ETH" } });
-
     render(<EscrowPage />);
-    // Wallet balance card should show 1.5000 ETH
-    const ethEntries = screen.getAllByText(/\d+\.\d+ ETH/);
-    expect(ethEntries.length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText("1.5000 ETH")).toBeInTheDocument();
-    expect(screen.getByText("0.4500 ETH")).toBeInTheDocument();
-    expect(screen.getByText("Connected wallet")).toBeInTheDocument();
+    expect(screen.getByTestId('create-escrow')).toBeInTheDocument();
+    expect(screen.getByTestId('create-button')).toBeInTheDocument();
   });
 
-  it("shows escrow balance from contract", () => {
-    mockUseBalance
-      .mockReturnValueOnce({ data: undefined }) // first call: walletBalance
-      .mockReturnValueOnce({ data: { value: BigInt("450000000000000000"), decimals: 18, symbol: "ETH" } }); // second call: escrowBalance
+  it('shows escrow onboarding when escrow exists', () => {
+    mockUseAccount.mockReturnValue({
+      address: '0x1234567890abcdef1234567890abcdef12345678',
+      isConnected: true,
+      isDisconnected: false,
+    });
+    mockUseEscrow.mockReturnValue({
+      escrowAddress: '0xabc123abc123abc123abc123abc123abc123abc1',
+      hasEscrow: true,
+      isLoading: false,
+      createEscrow: vi.fn(),
+      isCreating: false,
+      isWaitingCreation: false,
+      isCreationConfirmed: false,
+      createTxHash: undefined,
+    });
     render(<EscrowPage />);
-    expect(screen.getByText("0.4500 ETH")).toBeInTheDocument();
+    expect(screen.getByTestId('escrow-onboarding')).toBeInTheDocument();
   });
 
-  it("displays escrow info section explaining the flow", () => {
+  it('shows loading state when escrow data is loading', () => {
+    mockUseAccount.mockReturnValue({
+      address: '0x1234567890abcdef1234567890abcdef12345678',
+      isConnected: true,
+      isDisconnected: false,
+    });
+    mockUseEscrow.mockReturnValue({
+      escrowAddress: undefined,
+      hasEscrow: false,
+      isLoading: true,
+      createEscrow: vi.fn(),
+      isCreating: false,
+      isWaitingCreation: false,
+      isCreationConfirmed: false,
+      createTxHash: undefined,
+    });
     render(<EscrowPage />);
-    expect(screen.getByText("How Escrow Works")).toBeInTheDocument();
-    expect(screen.getByText("1. Deposit")).toBeInTheDocument();
-    expect(screen.getByText("2. Trade")).toBeInTheDocument();
-    expect(screen.getByText("3. Withdraw")).toBeInTheDocument();
+    expect(screen.getByText('Loading your escrow...')).toBeInTheDocument();
   });
 
-  it("shows coming-soon notice for withdrawls", () => {
+  it('shows create escrow with tx hash', () => {
+    mockUseAccount.mockReturnValue({
+      address: '0x1234567890abcdef1234567890abcdef12345678',
+      isConnected: true,
+      isDisconnected: false,
+    });
+    mockUseEscrow.mockReturnValue({
+      escrowAddress: undefined,
+      hasEscrow: false,
+      isLoading: false,
+      createEscrow: vi.fn(),
+      isCreating: false,
+      isWaitingCreation: true,
+      isCreationConfirmed: false,
+      createTxHash: '0xtx123tx123tx123tx123tx123tx123x123x12',
+    });
     render(<EscrowPage />);
-    expect(screen.getByText(/withdrawals are coming soon/i)).toBeInTheDocument();
+    expect(screen.getByTestId('tx-hash').textContent).toBe('0xtx123tx123tx123tx123tx123tx123x123x12');
   });
 });

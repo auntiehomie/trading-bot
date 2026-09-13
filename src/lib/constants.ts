@@ -1,12 +1,20 @@
 export const ARBITRUM_CHAIN_ID = 42161;
+export const ARBITRUM_SEPOLIA_CHAIN_ID = 421614;
 
 export const ARBITRUM_RPC_URL =
   process.env.NEXT_PUBLIC_ARBITRUM_RPC_URL || "https://arb1.arbitrum.io/rpc";
+
+export const ARBITRUM_SEPOLIA_RPC_URL =
+  process.env.NEXT_PUBLIC_ARBITRUM_SEPOLIA_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc";
 
 export const WALLETCONNECT_PROJECT_ID =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "";
 
 export const ESCROW_ADDRESS =
   process.env.NEXT_PUBLIC_ESCROW_ADDRESS || "0x0000000000000000000000000000000000000001";
+
+export const ESCROW_FACTORY_ADDRESS =
+  process.env.NEXT_PUBLIC_ESCROW_FACTORY_ADDRESS ||
+  "0x0000000000000000000000000000000000000000";
 
 export const ESCROW_DEPOSIT_MINIMUM = 0.01; // ETH
