@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAccount, useBalance } from "wagmi";
+import { formatEther } from "viem";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: "📊" },
@@ -13,6 +15,12 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { address, isConnected } = useAccount();
+  const { data: walletBalance } = useBalance({ address });
+
+  const walletEth = walletBalance
+    ? Number(formatEther(walletBalance.value)).toFixed(4)
+    : "0.0000";
 
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-gray-800 bg-gray-950">
@@ -43,8 +51,17 @@ export default function Sidebar() {
 
       <div className="border-t border-gray-800 p-4">
         <div className="rounded-lg bg-gray-900 p-3">
-          <p className="text-xs text-gray-500">Escrow Balance</p>
-          <p className="text-lg font-semibold text-white">0.45 ETH</p>
+          <p className="text-xs text-gray-500">
+            {isConnected ? "Wallet Balance" : "Escrow Balance"}
+          </p>
+          <p className="text-lg font-semibold text-white">
+            {isConnected ? `${walletEth} ETH` : "0.45 ETH"}
+          </p>
+          {isConnected && address && (
+            <p className="mt-1 text-[10px] text-gray-600 truncate">
+              {address.slice(0, 6)}...{address.slice(-4)}
+            </p>
+          )}
         </div>
       </div>
     </aside>

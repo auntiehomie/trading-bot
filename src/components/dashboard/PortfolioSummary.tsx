@@ -1,10 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAccount, useBalance } from "wagmi";
+import { formatEther } from "viem";
 import { mockPortfolioSummary as summary } from "@/lib/mock-data";
 import { priceMonitor, type PriceUpdate } from "@/lib/priceMonitor";
+import { ESCROW_ADDRESS } from "@/lib/constants";
 
 export default function PortfolioSummary() {
+  const { address, isConnected } = useAccount();
+  const { data: walletBalance } = useBalance({ address });
+  const { data: escrowBalance } = useBalance({
+    address: ESCROW_ADDRESS as `0x${string}`,
+  });
+
   const [ethPrice, setEthPrice] = useState<PriceUpdate | null>(() => {
     const existing = priceMonitor["prices"].get("ETH");
     if (existing) return existing;
@@ -21,15 +30,22 @@ export default function PortfolioSummary() {
   });
 
   useEffect(() => {
-    // Subscribe to live price updates from the PriceMonitor
     const unsubEth = priceMonitor.subscribe("ETH", (update) => setEthPrice(update));
     const unsubArb = priceMonitor.subscribe("ARB", (update) => setArbPrice(update));
-
     return () => {
       unsubEth();
       unsubArb();
     };
   }, []);
+
+  // Use real wallet balance when connected, fall back to mock
+  const walletBalanceEth = isConnected && walletBalance
+    ? Number(formatEther(walletBalance.value))
+    : null;
+
+  const escrowBalanceEth = escrowBalance
+    ? Number(formatEther(escrowBalance.value))
+    : summary.escrowBalance;
 
   const cards = [
     {
@@ -44,8 +60,15 @@ export default function PortfolioSummary() {
       positive: summary.totalPnl >= 0,
     },
     {
+      label: "Wallet Balance",
+      value: walletBalanceEth !== null
+        ? `${walletBalanceEth.toFixed(4)} ETH`
+        : "Not connected",
+      change: null,
+    },
+    {
       label: "Escrow Balance",
-      value: `${summary.escrowBalance} ETH`,
+      value: `${escrowBalanceEth.toFixed(4)} ETH`,
       change: null,
     },
     {
