@@ -20,7 +20,7 @@ vi.mock('@/hooks/useEscrow', () => ({
 }));
 
 vi.mock('@/components/escrow/CreateEscrow', () => ({
-  default: (props: any) => (
+  default: (props: Record<string, unknown>) => (
     <div data-testid="create-escrow">
       {props.createTxHash ? (
         <span data-testid="tx-hash">{props.createTxHash}</span>
