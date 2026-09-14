@@ -20,12 +20,18 @@ vi.mock('@/hooks/useEscrow', () => ({
 }));
 
 vi.mock('@/components/escrow/CreateEscrow', () => ({
-  default: (props: Record<string, unknown>) => (
+  default: ({
+    createTxHash,
+    onCreateEscrow,
+  }: {
+    createTxHash?: string;
+    onCreateEscrow?: () => void;
+  }) => (
     <div data-testid="create-escrow">
-      {props.createTxHash ? (
-        <span data-testid="tx-hash">{props.createTxHash}</span>
+      {createTxHash ? (
+        <span data-testid="tx-hash">{createTxHash}</span>
       ) : (
-        <button data-testid="create-button" onClick={props.onCreateEscrow}>
+        <button data-testid="create-button" onClick={onCreateEscrow}>
           Create Escrow Account
         </button>
       )}
