@@ -66,20 +66,17 @@ describe("PriceMonitor — WebSocket reconnection benchmarks", () => {
   });
 
   it("does not exceed max reconnection attempts (10)", () => {
-    let reconnectCount = 0;
-    const originalConnect = monitor["connectWebSocket"].bind(monitor);
-    monitor["connectWebSocket"] = vi.fn(async () => {
-      reconnectCount++;
-    });
-
-    // Simulate 10 close events
+    // Simulate repeated close events without executing scheduled reconnects.
     for (let i = 0; i < 15; i++) {
-      monitor["reconnectAttempts"] = i;
       monitor["handleWsClose"]();
+      if (monitor["reconnectTimer"]) {
+        clearTimeout(monitor["reconnectTimer"]);
+        monitor["reconnectTimer"] = null;
+      }
     }
 
-    // After MAX_RECONNECT_ATTEMPTS, handleWsClose returns early
-    expect(monitor["reconnectAttempts"]).toBeLessThanOrEqual(10);
+    // After MAX_RECONNECT_ATTEMPTS, handleWsClose returns early.
+    expect(monitor["reconnectAttempts"]).toBe(10);
   });
 
   it("uses exponential backoff between reconnection attempts", () => {

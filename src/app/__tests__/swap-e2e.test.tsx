@@ -42,27 +42,29 @@ describe("E2E: Swap Execution Flow", () => {
     render(<SwapInterface />);
 
     // 1. Verify token selectors are present
-    expect(screen.getByText(/Ethereum/i)).toBeInTheDocument();
-    expect(screen.getByText(/USD Coin/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue("ETH")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("USDC")).toBeInTheDocument();
 
     // 2. Enter swap amount
-    const amountInput = screen.getByPlaceholderText(/0\.0/i) || screen.getByLabelText(/amount/i) || screen.getByDisplayValue("");
+    const amountInput = screen.getAllByPlaceholderText(/0\.0/i)[0];
     await act(async () => {
       fireEvent.change(amountInput, { target: { value: "0.5" } });
     });
 
-    // 3. Verify quote is generated
-    await waitFor(() => {
-      const quoteElement = screen.queryByText(/quote|rate|1 ETH/i);
-      // Quote may or may not appear depending on mock state — just verify no crash
-      expect(screen.getByText(/Ethereum/i)).toBeInTheDocument();
+    // 3. The input event is accepted without crashing. Quote generation is
+    // explicitly triggered by the Get Quote action below in the UI.
+    expect(amountInput).toHaveValue(0.5);
+    const quoteButton = screen.getByRole("button", { name: "Get Quote" });
+    await act(async () => {
+      fireEvent.click(quoteButton);
     });
+    expect(screen.getByText(/1 ETH =/i)).toBeInTheDocument();
   });
 
   it("shows wallet connection state", async () => {
     render(<SwapInterface />);
     // Wallet is connected via mock — verify the component renders without error
-    expect(screen.getByText(/Ethereum/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue("ETH")).toBeInTheDocument();
   });
 
   it("disables execute button when amount is empty", async () => {
@@ -71,7 +73,7 @@ describe("E2E: Swap Execution Flow", () => {
     const executeBtn = buttons.find((b) => /execute|swap|confirm/i.test(b.textContent || ""));
     if (executeBtn) {
       // Should be disabled or not present when no amount entered
-      expect(executeBtn.disabled || true).toBe(true);
+      expect((executeBtn as HTMLButtonElement).disabled).toBe(true);
     }
   });
 
@@ -83,8 +85,8 @@ describe("E2E: Swap Execution Flow", () => {
       await act(async () => {
         fireEvent.click(swapBtn);
       });
-      // After swap, tokens should be reversed
-      expect(screen.getByText(/Ethereum/i)).toBeInTheDocument();
+      // After swap, the original output token should now be the input token.
+      expect(screen.getByDisplayValue("USDC")).toBeInTheDocument();
     }
   });
 
@@ -92,7 +94,7 @@ describe("E2E: Swap Execution Flow", () => {
     const estimate = evaluateTrade({
       tokenIn: "ETH",
       tokenOut: "USDC",
-      amountIn: BigInt(500000000000000000n), // 0.5 ETH
+      amountIn: BigInt("500000000000000000"), // 0.5 ETH
       amountOut: BigInt(1600000000), // 1600 USDC
       priceInUsd: 3200,
       priceOutUsd: 1.0,
