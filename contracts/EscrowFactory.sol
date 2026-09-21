@@ -16,7 +16,7 @@ contract EscrowFactory {
     function createEscrow() external returns (address) {
         require(userEscrows[msg.sender] == address(0), "Escrow already exists");
         bytes32 salt = keccak256(abi.encodePacked(msg.sender));
-        Escrow escrow = new Escrow{salt: salt}();
+        Escrow escrow = new Escrow{salt: salt}(msg.sender);
         userEscrows[msg.sender] = address(escrow);
         allEscrows.push(address(escrow));
         emit EscrowCreated(msg.sender, address(escrow));

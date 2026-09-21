@@ -1,17 +1,19 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { formatEther, parseEther } from "viem";
 import {
   useAccount,
   useBalance,
+  useReadContract,
   useSendTransaction,
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
-import { parseEther, formatEther } from "viem";
-import { ESCROW_DEPOSIT_MINIMUM } from "@/lib/constants";
+
 import { escrowAbi } from "@/lib/abis/escrow";
-import { ARBITRUM_SEPOLIA_CHAIN_ID } from "@/lib/constants";
+import { ARBITRUM_SEPOLIA_CHAIN_ID, ESCROW_DEPOSIT_MINIMUM } from "@/lib/constants";
+import { isEscrowOwnedByUser } from "@/lib/escrow-security";
 
 interface EscrowOnboardingProps {
   escrowAddress: string;
@@ -19,6 +21,20 @@ interface EscrowOnboardingProps {
 
 export default function EscrowOnboarding({ escrowAddress }: EscrowOnboardingProps) {
   const { address: userAddress, isConnected } = useAccount();
+
+  // Fail closed before allowing funds into an escrow. Legacy escrows created
+  // by the vulnerable factory are owned by the factory contract, not the user.
+  const {
+    data: escrowOwner,
+    isLoading: isOwnerLoading,
+    isError: isOwnerError,
+  } = useReadContract({
+    address: escrowAddress as `0x${string}`,
+    abi: escrowAbi,
+    functionName: "owner",
+    chainId: ARBITRUM_SEPOLIA_CHAIN_ID,
+  });
+  const isOwnerVerified = isEscrowOwnedByUser(escrowOwner, userAddress);
 
   // Escrow balance
   const { data: escrowBalance, refetch: refetchEscrowBalance } = useBalance({
@@ -54,12 +70,13 @@ export default function EscrowOnboarding({ escrowAddress }: EscrowOnboardingProp
 
   const isDepositValid =
     isConnected &&
+    isOwnerVerified &&
     depositAmount &&
     Number(depositAmount) >= ESCROW_DEPOSIT_MINIMUM &&
     parsedDeposit > BigInt(0);
 
   const handleDeposit = () => {
-    if (!isDepositValid || !escrowAddress) return;
+    if (!isDepositValid || !escrowAddress || !isOwnerVerified) return;
     sendTransaction({
       to: escrowAddress as `0x${string}`,
       value: parsedDeposit,
@@ -90,6 +107,7 @@ export default function EscrowOnboarding({ escrowAddress }: EscrowOnboardingProp
 
   const isWithdrawValid =
     isConnected &&
+    isOwnerVerified &&
     withdrawAmount &&
     parsedWithdraw > BigInt(0) &&
     escrowBalance &&
@@ -179,6 +197,19 @@ export default function EscrowOnboarding({ escrowAddress }: EscrowOnboardingProp
           funds are secured by a smart contract escrow.
         </p>
 
+        {!isOwnerVerified && (
+          <div
+            role="alert"
+            className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300"
+          >
+            {isOwnerLoading
+              ? "Verifying escrow ownership before deposits are enabled…"
+              : isOwnerError
+                ? "Could not verify escrow ownership. Deposits are disabled for your protection."
+                : "This wallet does not own the escrow contract. Deposits are disabled; migrate to a user-owned escrow before sending funds."}
+          </div>
+        )}
+
         <div className="mb-4">
           <label className="block text-xs text-gray-500 mb-1">Amount (ETH)</label>
           <div className="flex items-center gap-3">
@@ -189,12 +220,12 @@ export default function EscrowOnboarding({ escrowAddress }: EscrowOnboardingProp
               placeholder="0.00"
               value={depositAmount}
               onChange={(e) => setDepositAmount(e.target.value)}
-              disabled={depositLoading}
+              disabled={depositLoading || !isOwnerVerified}
               className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white outline-none placeholder:text-gray-600 focus:border-emerald-500/50 disabled:opacity-50"
             />
             <button
               onClick={handleDeposit}
-              disabled={!isDepositValid || depositLoading}
+              disabled={!isDepositValid || depositLoading || !isOwnerVerified}
               className="whitespace-nowrap rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {depositLoading ? (
@@ -242,12 +273,12 @@ export default function EscrowOnboarding({ escrowAddress }: EscrowOnboardingProp
               placeholder="0.00"
               value={withdrawAmount}
               onChange={(e) => setWithdrawAmount(e.target.value)}
-              disabled={withdrawLoading}
+              disabled={withdrawLoading || !isOwnerVerified}
               className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white outline-none placeholder:text-gray-600 focus:border-emerald-500/50 disabled:opacity-50"
             />
             <button
               onClick={handleWithdraw}
-              disabled={!isWithdrawValid || withdrawLoading}
+              disabled={!isWithdrawValid || withdrawLoading || !isOwnerVerified}
               className="whitespace-nowrap rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-400 transition-colors hover:border-emerald-500/60 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {withdrawLoading ? (

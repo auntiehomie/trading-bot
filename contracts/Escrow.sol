@@ -16,7 +16,7 @@ contract Escrow is Ownable {
         _;
     }
 
-    constructor() Ownable(msg.sender) {}
+    constructor(address initialOwner) Ownable(initialOwner) {}
 
     function setOperator(address _operator) external onlyOwner {
         operator = _operator;
