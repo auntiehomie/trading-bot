@@ -1,7 +1,9 @@
 export const escrowAbi = [
   {
     type: "constructor",
-    inputs: [],
+    inputs: [
+      { name: "initialOwner", type: "address", internalType: "address" },
+    ],
     stateMutability: "nonpayable",
   },
   {
